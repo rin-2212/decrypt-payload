@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Công cụ giải mã Payload AES-256-CBC</title>
+  <style>
+    :root { --bg:#0b1220; --card:#0f1a33; --muted:#94a3b8; --text:#e5e7eb; --line:#24324f; --btn:#2563eb; --btn2:#334155; --err:#ef4444; --ok:#22c55e; }
+    *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";background:linear-gradient(180deg,#060a14, #0b1220);color:var(--text)}
+    .wrap{max-width:980px;margin:0 auto;padding:28px 18px 44px}
+    .card{background:rgba(15,26,51,.9);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    h1{font-size:26px;margin:0 0 6px} .sub{color:var(--muted);margin:0 0 18px;line-height:1.5}
+    .grid{display:grid;gap:14px} @media(min-width:900px){.grid{grid-template-columns:1.4fr 1fr}}
+    label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+    input,textarea,select{width:100%;background:#0b1328;border:1px solid var(--line);color:var(--text);border-radius:12px;padding:12px 12px;font-size:14px;outline:none}
+    textarea{min-height:92px;resize:vertical}
+    input:focus,textarea:focus,select:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+    .row{display:grid;gap:12px} @media(min-width:700px){.row{grid-template-columns:1fr 1fr}}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button{border:0;border-radius:12px;padding:12px 14px;font-weight:600;color:white;cursor:pointer}
+    .primary{background:var(--btn)} .secondary{background:var(--btn2)}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    .out{margin-top:16px}
+    .status{margin:10px 0 0;font-size:13px}
+    .status.err{color:var(--err)} .status.ok{color:var(--ok)}
+    .tabs{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+    .tab{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:#0b1328;color:var(--text);font-size:13px;cursor:pointer}
+    .tab.active{border-color:#3b82f6}
+    pre{background:#0b1328;border:1px solid var(--line);border-radius:14px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+    table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}
+    th{background:#0b1328;text-align:left;color:#cbd5e1;font-weight:600}
+    tr:last-child td{border-bottom:0}
+    .top{padding:20px 20px 12px} .body{padding:0 20px 20px}
+    code{color:#cbd5e1}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="top">
+        <h1>Công cụ giải mã Payload AES-256-CBC</h1>
+        <p class="sub">Giải mã chuỗi <code>payload</code> Base64 URL-safe theo chuẩn AES-256-CBC với PKCS7 padding để kiểm tra các tham số đã được truyền lên (query string).</p>
+      </div>
+
+      <div class="body">
+        <div class="grid">
+          <div>
+            <label>Payload hoặc URL chứa payload</label>
+            <textarea id="payload" placeholder="Dán payload Base64url hoặc dán nguyên URL (có ?payload=...)" spellcheck="false"></textarea>
+            <div class="hint">Nếu bạn dán URL đầy đủ, tool sẽ tự trích tham số <code>payload</code> (hoặc <code>data</code>/<code>cipher</code> nếu có).</div>
+
+            <div class="row" style="margin-top:12px">
+              <div>
+                <label>Định dạng Key/IV</label>
+                <select id="fmt">
+                  <option value="utf8" selected>UTF-8 (chuỗi đúng độ dài)</option>
+                  <option value="hex">Hex</option>
+                  <option value="base64">Base64</option>
+                </select>
+              </div>
+              <div>
+                <label>Tuỳ chọn</label>
+                <select id="parseMode">
+                  <option value="auto" selected>Tự parse query string</option>
+                  <option value="raw">Chỉ hiển thị plaintext thô</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row" style="margin-top:12px">
+              <div>
+                <label>Khóa bí mật (32 bytes cho AES-256)</label>
+                <input id="key" placeholder="Nhập KEY..." spellcheck="false" />
+                <div class="hint">Nếu chọn UTF-8: độ dài theo bytes phải là 32.</div>
+              </div>
+              <div>
+                <label>Vector khởi tạo IV (16 bytes)</label>
+                <input id="iv" placeholder="Nhập IV..." spellcheck="false" />
+                <div class="hint">Nếu chọn UTF-8: độ dài theo bytes phải là 16.</div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="primary" id="btn">Giải mã Payload</button>
+              <button class="secondary" id="btnExtract">Trích payload từ URL</button>
+              <button class="secondary" id="btnClear">Xoá</button>
+            </div>
+            <div id="status" class="status"></div>
+          </div>
+
+          <div>
+            <label>Kết quả</label>
+            <div class="tabs">
+              <button class="tab active" data-tab="table">Tham số</button>
+              <button class="tab" data-tab="plain">Plaintext</button>
+              <button class="tab" data-tab="json">JSON</button>
+            </div>
+
+            <div class="out" id="out">
+              <div id="view-table"></div>
+              <div id="view-plain" style="display:none"><pre id="plain"></pre></div>
+              <div id="view-json" style="display:none"><pre id="json"></pre></div>
+            </div>
+
+            <div class="hint" style="margin-top:10px">
+              Lưu ý: WebCrypto yêu cầu <b>key=32 bytes</b>, <b>iv=16 bytes</b>. Tool sẽ báo lỗi nếu không đúng định dạng/độ dài.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // --- Utilities ---
+  const $ = (id) => document.getElementById(id);
+
+  function setStatus(msg, kind = "") {
+    const el = $("status");
+    el.className = "status" + (kind ? " " + kind : "");
+    el.textContent = msg || "";
+  }
+
+  function base64urlToBytes(b64url) {
+    // RFC 4648 base64url: '-' -> '+', '_' -> '/', pad with '='
+    let s = (b64url || "").trim();
+    // Strip surrounding quotes and whitespace
+    s = s.replace(/^['\"]|['\"]$/g, "");
+    s = s.replace(/\s+/g, "");
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    const pad = s.length % 4;
+    if (pad === 2) s += "==";
+    else if (pad === 3) s += "=";
+    else if (pad !== 0) {
+      // length % 4 === 1 is invalid
+      throw new Error("Base64url không hợp lệ (độ dài sai)");
+    }
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function hexToBytes(hex) {
+    let s = (hex || "").trim().toLowerCase();
+    s = s.replace(/^0x/, "").replace(/\s+/g, "");
+    if (s.length % 2 !== 0) throw new Error("Hex không hợp lệ (độ dài lẻ)");
+    const out = new Uint8Array(s.length / 2);
+    for (let i = 0; i < out.length; i++) {
+      const byte = s.slice(i * 2, i * 2 + 2);
+      const v = Number.parseInt(byte, 16);
+      if (Number.isNaN(v)) throw new Error("Hex không hợp lệ");
+      out[i] = v;
+    }
+    return out;
+  }
+
+  function base64ToBytes(b64) {
+    let s = (b64 || "").trim();
+    s = s.replace(/\s+/g, "");
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function utf8ToBytes(str) {
+    return new TextEncoder().encode(str ?? "");
+  }
+
+  function bytesToUtf8(bytes) {
+    return new TextDecoder().decode(bytes);
+  }
+
+  function pkcs7Unpad(bytes) {
+    if (!bytes || bytes.length === 0) throw new Error("Plaintext rỗng");
+    const pad = bytes[bytes.length - 1];
+    if (pad < 1 || pad > 16) throw new Error("PKCS7 padding không hợp lệ");
+    for (let i = bytes.length - pad; i < bytes.length; i++) {
+      if (bytes[i] !== pad) throw new Error("PKCS7 padding không hợp lệ");
+    }
+    return bytes.slice(0, bytes.length - pad);
+  }
+
+  function pkcs7UnpadSafe(bytes) {
+    // Chỉ bỏ padding nếu đúng format. Nếu không đúng, giữ nguyên để tránh "double-unpad".
+    try {
+      const pad = bytes?.length ? bytes[bytes.length - 1] : 0;
+      if (pad >= 1 && pad <= 16) {
+        // Quick validation: all last pad bytes must equal pad
+        for (let i = bytes.length - pad; i < bytes.length; i++) {
+          if (bytes[i] !== pad) return bytes;
+        }
+        return bytes.slice(0, bytes.length - pad);
+      }
+      return bytes;
+    } catch {
+      return bytes;
+    }
+  }
+
+  function extractPayloadFromText(text) {
+    const t = (text || "").trim();
+    if (!t) return "";
+
+    // If it's a URL, try to parse and get payload param.
+    try {
+      const u = new URL(t);
+      const sp = u.searchParams;
+      return sp.get("payload") || sp.get("data") || sp.get("cipher") || "";
+    } catch (_) {
+      // Not a URL, maybe it contains payload=... somewhere
+      const m = t.match(/[?&](payload|data|cipher)=([^&#]+)/i);
+      if (m && m[2]) return decodeURIComponent(m[2]);
+      return t; // assume it's payload itself
+    }
+  }
+
+  function renderParamsTable(paramsObj) {
+    const entries = Object.entries(paramsObj);
+    if (entries.length === 0) {
+      return '<div class="hint">Không tìm thấy tham số để hiển thị.</div>';
+    }
+    const rows = entries.map(([k, v]) => {
+      const vv = Array.isArray(v) ? v.join(", ") : String(v);
+      return `<tr><td><code>${escapeHtml(k)}</code></td><td>${escapeHtml(vv)}</td></tr>`;
+    }).join("");
+    return `<table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function normalizeQuerySeparators(qs) {
+    // Chuẩn query string phải dùng '&' giữa các cặp k=v.
+    // Một số hệ thống lại build sai thành 'and' (ví dụ: k=vandk2=v2...).
+    // Ta chỉ thay 'and' nếu ngay sau nó là một key tiếp theo (lookahead: <key>=).
+    const s = (qs || "").trim();
+    if (s.includes("&")) return s;
+
+    // Replace occurrences of 'and' that are very likely separators.
+    // Examples handled: ...=123andproduct_id=204andreturnUrl=...
+    return s.replace(/and(?=[A-Za-z0-9_]+?=)/g, "&");
+  }
+
+  function parseQueryString(qs) {
+    // Accept either a full querystring "a=1&b=2" or leading '?'
+    const normalized = normalizeQuerySeparators(qs);
+    const s = normalized.trim().replace(/^\?/, "");
+    const sp = new URLSearchParams(s);
+    const out = {};
+    for (const [k, v] of sp.entries()) {
+      if (Object.prototype.hasOwnProperty.call(out, k)) {
+        if (Array.isArray(out[k])) out[k].push(v);
+        else out[k] = [out[k], v];
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+
+  async function importAesKey(rawKeyBytes) {
+    return crypto.subtle.importKey(
+      "raw",
+      rawKeyBytes,
+      { name: "AES-CBC" },
+      false,
+      ["decrypt"]
+    );
+  }
+
+  function getKeyIvBytes() {
+    const fmt = $("fmt").value;
+    const keyStr = $("key").value;
+    const ivStr = $("iv").value;
+
+    let keyBytes, ivBytes;
+    if (fmt === "utf8") {
+      keyBytes = utf8ToBytes(keyStr);
+      ivBytes = utf8ToBytes(ivStr);
+    } else if (fmt === "hex") {
+      keyBytes = hexToBytes(keyStr);
+      ivBytes = hexToBytes(ivStr);
+    } else {
+      keyBytes = base64ToBytes(keyStr);
+      ivBytes = base64ToBytes(ivStr);
+    }
+
+    if (keyBytes.length !== 32) throw new Error(`KEY phải là 32 bytes (hiện tại: ${keyBytes.length})`);
+    if (ivBytes.length !== 16) throw new Error(`IV phải là 16 bytes (hiện tại: ${ivBytes.length})`);
+    return { keyBytes, ivBytes };
+  }
+
+  async function decryptPayload() {
+    setStatus("");
+    const rawInput = $("payload").value;
+    const payload = extractPayloadFromText(rawInput);
+    if (!payload) throw new Error("Vui lòng nhập payload hoặc URL chứa payload");
+
+    const { keyBytes, ivBytes } = getKeyIvBytes();
+    let cipherBytes;
+    try {
+      cipherBytes = base64urlToBytes(payload);
+    } catch (e) {
+      throw new Error("Payload không decode được Base64url. Chi tiết: " + (e?.message || e));
+    }
+
+    if (cipherBytes.length % 16 !== 0) {
+      throw new Error(`Ciphertext không hợp lệ: độ dài ${cipherBytes.length} bytes không chia hết cho 16 (AES-CBC yêu cầu block size 16).`);
+    }
+
+    const key = await importAesKey(keyBytes);
+    let plain;
+    try {
+      const decrypted = await crypto.subtle.decrypt(
+        { name: "AES-CBC", iv: ivBytes },
+        key,
+        cipherBytes
+      );
+
+      // NOTE: WebCrypto AES-CBC đã tự xử lý PKCS#7 padding khi decrypt.
+      // Một số implementation khác trả về plaintext *còn padding*.
+      // Vì vậy ta unpad theo kiểu "an toàn": chỉ bỏ padding nếu nó hợp lệ; nếu không thì giữ nguyên.
+      const decBytes = new Uint8Array(decrypted);
+      const maybeUnpadded = pkcs7UnpadSafe(decBytes);
+      plain = bytesToUtf8(maybeUnpadded);
+    } catch (e) {
+      // Common failure modes: wrong key/iv, wrong base64url, wrong padding
+      throw new Error(
+        "Giải mã thất bại. Nguyên nhân phổ biến: (1) KEY/IV sai hoặc sai format; (2) payload bị cắt/encode sai; (3) encrypt/decrypt không cùng cách xử lý padding. " +
+        "Chi tiết: " + (e?.message || e)
+      );
+    }
+
+    // Render outputs
+    $("plain").textContent = plain;
+
+    // Heuristic warning if plaintext looks like it uses 'and' separators.
+    if (!plain.includes("&") && /and(?=[A-Za-z0-9_]+?=)/.test(plain)) {
+      setStatus(
+        "Giải mã thành công, nhưng plaintext có vẻ đang dùng 'and' làm dấu phân tách thay vì '&'. Tool đã tự chuẩn hoá để parse. Khuyến nghị sửa bên encrypt để join bằng '&'.",
+        "ok"
+      );
+    }
+
+    const mode = $("parseMode").value;
+    if (mode === "raw") {
+      $("view-table").innerHTML = '<div class="hint">(Đang ở chế độ chỉ hiển thị plaintext thô)</div>';
+      $("json").textContent = "";
+      return;
+    }
+
+    const params = parseQueryString(plain);
+    $("view-table").innerHTML = renderParamsTable(params);
+    $("json").textContent = JSON.stringify(params, null, 2);
+  }
+
+  // --- UI wiring ---
+  $("btn").addEventListener("click", async () => {
+    try {
+      await decryptPayload();
+      setStatus("Giải mã thành công.", "ok");
+    } catch (e) {
+      setStatus(e?.message || String(e), "err");
+    }
+  });
+
+  $("btnExtract").addEventListener("click", () => {
+    try {
+      const extracted = extractPayloadFromText($("payload").value);
+      $("payload").value = extracted || "";
+      setStatus(extracted ? "Đã trích payload." : "Không tìm thấy payload trong nội dung.", extracted ? "ok" : "err");
+    } catch (e) {
+      setStatus(e?.message || String(e), "err");
+    }
+  });
+
+  $("btnClear").addEventListener("click", () => {
+    $("payload").value = "";
+    $("key").value = "";
+    $("iv").value = "";
+    $("plain").textContent = "";
+    $("json").textContent = "";
+    $("view-table").innerHTML = "";
+    setStatus("");
+  });
+
+  // Tabs
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const tab = btn.dataset.tab;
+      $("view-table").style.display = tab === "table" ? "block" : "none";
+      $("view-plain").style.display = tab === "plain" ? "block" : "none";
+      $("view-json").style.display = tab === "json" ? "block" : "none";
+    });
+  });
+
+  // Convenience: paste full URL and auto-extract when user stops typing
+  let tmr;
+  $("payload").addEventListener("input", () => {
+    clearTimeout(tmr);
+    tmr = setTimeout(() => {
+      const v = $("payload").value.trim();
+      if (v.startsWith("http://") || v.startsWith("https://")) {
+        const extracted = extractPayloadFromText(v);
+        if (extracted) {
+          // Don't be too aggressive: only replace if it clearly looks like base64url-ish
+          if (/^[A-Za-z0-9_-]{16,}$/.test(extracted)) {
+            $("payload").value = extracted;
+            setStatus("Đã tự động trích payload từ URL.", "ok");
+          }
+        }
+      }
+    }, 450);
+  });
+</script>
+</body>
+</html>
